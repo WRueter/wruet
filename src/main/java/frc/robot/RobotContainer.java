@@ -43,6 +43,8 @@ import edu.wpi.first.wpilibj2.command.WaitCommand;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import frc.robot.subsystems.DrivetrainSubsystem;
 
+import static frc.robot.Constants.SPEED_SCALE;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.function.BooleanSupplier;
@@ -156,16 +158,14 @@ public class RobotContainer {
     Trajectory exampleTrajectory =
         TrajectoryGenerator.generateTrajectory(
             // Start at the origin facing the +X direction
-            new Pose2d(0, 0, new Rotation2d(0)),
-            // Pass through these two interior waypoints, making an 's' curve path
-            List.of(new Translation2d(1.5, 0)),
-            // End 3 meters straight ahead of where we started, facing forward
-            new Pose2d(3, 0, new Rotation2d(0)),
+            List.of(new Pose2d(0, 0, new Rotation2d(0)),
+            new Pose2d(3, 0, new Rotation2d(Math.PI / 2))),
             config);
 
     var thetaController =
         new ProfiledPIDController(
-            0, 0, 0, new Constraints(0, 0));
+            3.0, 0, 0, new Constraints(DrivetrainSubsystem.MAX_ANGULAR_VELOCITY_RADIANS_PER_SECOND,
+            DrivetrainSubsystem.MAX_ANGULAR_VELOCITY_RADIANS_PER_SECOND));
     thetaController.enableContinuousInput(-Math.PI, Math.PI);
 
     SwerveControllerCommand swerveControllerCommand =
@@ -175,8 +175,8 @@ public class RobotContainer {
             DrivetrainSubsystem.m_kinematics,
 
             // Position controllers
-            new PIDController(.5, 0, 0),
-            new PIDController(.5, 0, 0),
+            new PIDController(2.00, 0, 0),
+            new PIDController(2.00, 0, 0),
             thetaController,
             m_robotDrive::setModuleStates,
             m_robotDrive);
@@ -185,7 +185,10 @@ public class RobotContainer {
     m_robotDrive.resetOdometry(exampleTrajectory.getInitialPose());
 
     // Run path following command, then stop at the end.
-    return swerveControllerCommand.andThen(() -> m_robotDrive.drive(new ChassisSpeeds()));
+    return swerveControllerCommand
+    .andThen(() -> m_robotDrive.drive(new ChassisSpeeds()))
+    .andThen(new InstantCommand(() -> System.out.println("~~~~AUTON COMPLETE~~~~")))
+    .andThen(new InstantCommand(() -> System.out.println(m_robotDrive.getPose().toString())));
   }
 
 }

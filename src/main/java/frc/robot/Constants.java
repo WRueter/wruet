@@ -14,7 +14,7 @@ package frc.robot;
  */
 public final class Constants {
 
-    public static final double SPEED_SCALE = 0.25;
+    public static final double SPEED_SCALE = 0.15;
 
     /**
      * The left-to-right distance between the drivetrain wheels

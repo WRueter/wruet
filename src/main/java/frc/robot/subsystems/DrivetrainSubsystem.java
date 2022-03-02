@@ -11,6 +11,7 @@ import com.swervedrivespecialties.swervelib.Mk4iSwerveModuleHelper;
 import com.swervedrivespecialties.swervelib.SdsModuleConfigurations;
 import com.swervedrivespecialties.swervelib.SwerveModule;
 
+import edu.wpi.first.math.controller.SimpleMotorFeedforward;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
@@ -21,6 +22,7 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj.shuffleboard.BuiltInLayouts;
 import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
 import edu.wpi.first.wpilibj.shuffleboard.ShuffleboardTab;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 
@@ -35,6 +37,8 @@ public class DrivetrainSubsystem extends SubsystemBase {
   public static final double MAX_VOLTAGE = 12.0;
 
   private SwerveDriveOdometry odometry;
+
+  private SimpleMotorFeedforward _driveFeedforward = new SimpleMotorFeedforward(0.798, 2.35, 0.30);
 
   private static DrivetrainSubsystem _instance;
   public static DrivetrainSubsystem get_instance(){
@@ -56,7 +60,7 @@ public class DrivetrainSubsystem extends SubsystemBase {
    */
   public static final double MAX_VELOCITY_METERS_PER_SECOND = 6380.0 / 60.0 *
           SdsModuleConfigurations.MK4I_L2.getDriveReduction() *
-          SdsModuleConfigurations.MK4I_L2.getWheelDiameter() * Math.PI;
+          SdsModuleConfigurations.MK4I_L2.getWheelDiameter() * Math.PI / 4;
   /**
    * The maximum angular velocity of the robot in radians per second.
    * <p>
@@ -174,6 +178,7 @@ public class DrivetrainSubsystem extends SubsystemBase {
   public void zeroGyroscope() {
     // FIXME Remove if you are using a Pigeon
     m_pigeon.setYaw(0.0);
+    resetOdometry(new Pose2d());
 
     // FIXME Uncomment if you are using a NavX
 //    m_navx.zeroYaw();
@@ -198,6 +203,9 @@ public class DrivetrainSubsystem extends SubsystemBase {
   public void resetOdometry(Pose2d pose){
         odometry.resetPosition(pose, getGyroscopeRotation());
   }
+  public SwerveModuleState getState(SwerveModule mod){
+        return new SwerveModuleState(mod.getDriveVelocity(), new Rotation2d(mod.getSteerAngle()));
+  }
 
   public void setModuleStates(SwerveModuleState[] states){
           m_chassisSpeeds = m_kinematics.toChassisSpeeds(states);
@@ -207,11 +215,18 @@ public class DrivetrainSubsystem extends SubsystemBase {
   public void periodic() {
     SwerveModuleState[] states = m_kinematics.toSwerveModuleStates(m_chassisSpeeds);
     SwerveDriveKinematics.desaturateWheelSpeeds(states, MAX_VELOCITY_METERS_PER_SECOND);
-    odometry.update(getGyroscopeRotation(), states);
+    odometry.update(
+        getGyroscopeRotation(),
+        getState(m_frontLeftModule),
+        getState(m_frontRightModule),
+        getState(m_backLeftModule),
+        getState(m_backRightModule)
+    );
+    SmartDashboard.putString("POSE", odometry.getPoseMeters().getTranslation().toString().substring(13));
 
-    m_frontLeftModule.set(states[0].speedMetersPerSecond / MAX_VELOCITY_METERS_PER_SECOND * MAX_VOLTAGE * SPEED_SCALE, states[0].angle.getRadians());
-    m_frontRightModule.set(states[1].speedMetersPerSecond / MAX_VELOCITY_METERS_PER_SECOND * MAX_VOLTAGE * SPEED_SCALE, states[1].angle.getRadians());
-    m_backLeftModule.set(states[2].speedMetersPerSecond / MAX_VELOCITY_METERS_PER_SECOND * MAX_VOLTAGE * SPEED_SCALE, states[2].angle.getRadians());
-    m_backRightModule.set(states[3].speedMetersPerSecond / MAX_VELOCITY_METERS_PER_SECOND * MAX_VOLTAGE * SPEED_SCALE, states[3].angle.getRadians());
+    m_frontLeftModule.set(_driveFeedforward.calculate(states[0].speedMetersPerSecond), states[0].angle.getRadians());
+    m_frontRightModule.set(_driveFeedforward.calculate(states[1].speedMetersPerSecond), states[1].angle.getRadians());
+    m_backLeftModule.set(_driveFeedforward.calculate(states[2].speedMetersPerSecond), states[2].angle.getRadians());
+    m_backRightModule.set(_driveFeedforward.calculate(states[3].speedMetersPerSecond), states[3].angle.getRadians());
   }
 }
